@@ -112,10 +112,39 @@ These aren't hypotheticals — each one could reasonably come back negative and 
 4. **Recusal.** Does excluding the author's family from refutation actually change outcomes, or is
    it a principle with no measurable effect? Run it both ways on Claude-authored seeded bugs. The
    answer is genuinely unknown and it is one of the load-bearing claims in the README.
-5. **Symbol slice depth.** 0 vs. 1 vs. 2. Directly trades tokens for T0 kill rate; the packet
-   builder is the most expensive part of the prompt and the easiest to over-build.
+5. **Symbol slice depth.** 0 vs. 1 vs. 2. Directly trades tokens for precision; the packet builder
+   is the most expensive part of the prompt and the easiest to over-build. Run at M1, not M5 —
+   its answer sizes the rest of the context work.
 6. **Anonymization.** Does telling reviewers "written by Claude" measurably suppress findings? A
    cheap, interesting experiment, and the result is worth publishing regardless of direction.
+7. **Context negotiation pass on/off.** Does letting a reviewer request more context beat simply
+   giving every reviewer a bigger packet? Compare on **false positives per dollar**, not
+   false-positive rate — the two approaches buy similar quality at very different prices, and rate
+   alone would hide that. If a bigger uniform packet wins, delete the pass; it is the most complex
+   of the three context mechanisms and should have to earn its place.
+
+## 5a. The context-sufficiency question, specifically
+
+Naive multi-model review fails primarily on **absence claims** — "this input is never validated,"
+"nothing handles this error" — where the handling exists outside the reviewer's window. This is a
+categorical problem, not a tuning problem: absence cannot be established from a subset (see
+[`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md#23-absence-claims--the-dominant-false-positive-class)).
+
+The design attacks it three ways, and the bench must attribute credit among them or we will not
+know which to keep:
+
+| Metric | Question it answers |
+| --- | --- |
+| **Absence-claim share of false positives** | Is this really the dominant class, as assumed? If it is not, the T0.5 machinery is over-built and should shrink. |
+| **T0.5 kill/reframe rate** | How often does repo-wide falsification search find the context the reviewer lacked? |
+| **T0.5 reframe → confirmed rate** | Of absence claims reframed as "the guard exists, does it cover this case," how many become *real* findings? A high rate validates escalating rather than dropping; a near-zero rate means just drop them and save the T2 spend. |
+| **Slice-depth precision curve** | Where does added context stop paying? |
+| **Negotiation-pass request rate** | How often do reviewers admit the packet was insufficient — and are the ones that ask more accurate than the ones that don't? |
+| **Post-repair FP rate** | The bottom line: false-positive rate on absence claims *after* all three mechanisms, vs. a diff-only baseline. This is the number that says whether the context problem is solved. |
+
+The diff-only baseline is worth running deliberately and keeping in the published results. It is
+the configuration most people's first experiment lands in, and quantifying how bad it is makes the
+case for everything above it.
 
 ## 6. Production feedback loop
 

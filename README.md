@@ -24,6 +24,14 @@ to review a diff and you will get sixty findings, of which perhaps six matter. A
 finding must survive a verification gauntlet before anyone sees it, and where a claim is
 *checkable*, it gets checked rather than voted on.
 
+Most of those false positives have one shape. A reviewer shown a diff reports that something is
+*missing* — "this input is never validated" — when the validator sits two frames up, outside the
+window. Sending a bigger diff does not fix this, because **absence cannot be established from a
+subset** and there is always more repo outside the window. crossexam instead makes reviewers
+declare what would disprove such a claim, then runs that search across the whole repository
+itself and hands the result back to the adjudicator. See
+[ADR-0006](docs/adr/0006-context-sufficiency.md).
+
 ## The one-paragraph design
 
 Orchestration is deterministic Python, not an agent loop. The pipeline builds a **review packet**

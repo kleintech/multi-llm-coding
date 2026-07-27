@@ -1,26 +1,37 @@
 # Roadmap
 
-Ordered so that the riskiest assumption is tested first and cheapest. The riskiest assumption is
-**panel lift** — that a cross-vendor panel finds materially more real bugs than the best single
-model. If that turns out to be small, nearly everything downstream should be simplified or cut,
-and it is much better to learn that in week two than after the GitHub Action is built.
+Ordered so that the riskiest assumptions are tested first and cheapest. There are two:
+
+1. **Context sufficiency.** That a reviewer can be given enough of the surrounding codebase to
+   judge a diff without false-positiving on things handled elsewhere. This is the failure mode
+   that kills naive multi-model review, and it is addressed by the packet's symbol slice, the
+   context negotiation pass, and T0.5 falsification search. See
+   [ADR-0006](adr/0006-context-sufficiency.md).
+2. **Panel lift.** That a cross-vendor panel finds materially more real bugs than the best single
+   model. If small, nearly everything downstream should be simplified or cut.
+
+Both are settled by M2. Neither should be argued about past that point.
 
 ---
 
-## M0 — Walking skeleton *(~1 week)*
+## M0 — Walking skeleton *(~1.5 weeks)*
 
-Prove the loop end to end, locally, at the lowest possible fidelity.
+Prove the loop end to end, locally. Context handling is in from day one — it is not a refinement,
+it is the difference between a working reviewer and a noise generator.
 
 - `Finding` / `RunRecord` models, `panel.yaml` loader with family resolution and validation
-- Packet builder: diff + full changed files only. **No symbol slice, no signals.**
+- Packet builder: diff + full changed files + **symbol slice at depth 1** (tree-sitter/ctags)
 - `litellm_backend` with the structured-output ladder (rungs 1–3 only)
 - Fan-out to 2 models × 2 personas, blind
-- T0 reference check
+- T0 reference check; `asserts_absence` in the schema
+- **T0.5 falsification search** — declared-symbol and pattern search, repo-wide. Cheap to build
+  (it is ripgrep and a caller walk), and it targets the dominant false-positive class directly.
 - Terminal renderer, run record persisted
 - `crossexam review --base main` works on a local repo
 
-**Exit:** a real diff produces findings, and T0 kills at least one fabricated citation. No
-clustering, no refutation, no sandbox.
+**Exit:** a real diff produces findings; T0 kills a fabricated citation; T0.5 catches at least one
+"X is never validated" claim where the validator exists elsewhere in the repo. No clustering, no
+refutation, no sandbox.
 
 ## M1 — The bench *(~1 week)*
 
@@ -30,10 +41,16 @@ argued.
 - Corpus: 40 seeded + 30 clean, Python and TypeScript. Historical pairs deferred to M4.
 - `bench run` / `bench score`, LLM judge with cached judgments
 - Offline replay over run records
-- **First numbers:** single-model baselines, T0 kill rate per model, and a first panel-lift reading
+- Symbol slice depth 2 + packet tiers, so slice depth becomes a sweepable parameter
+- Context negotiation pass (pass A/B), behind a flag so it can be ablated
+- **First numbers:** single-model baselines, T0 kill rate, **T0.5 kill rate**, **absence-claim
+  share of all false positives**, and a first panel-lift reading
 
-**Exit:** we can answer "does adding gemini to a gpt-only panel help, and by how much" with a
-number instead of an opinion.
+**Exit:** we can answer two questions with numbers instead of opinions — "does adding gemini to a
+gpt-only panel help, and by how much," and "how much of our false-positive rate is context
+starvation, and which of the three context mechanisms actually pays for itself." Ablations 5 and 7
+(slice depth; negotiation pass on/off) run here rather than at M5, because their answers determine
+how much of M5 is worth building at all.
 
 ## M2 — The adversarial core *(~2 weeks)*
 
@@ -71,18 +88,17 @@ This is the feature that separates crossexam from a prompt.
 
 **Exit:** running on this repository's own PRs. Dogfooding is the acceptance test.
 
-## M5 — Context quality *(~1.5 weeks)*
+## M5 — Context refinement *(~1.5 weeks)*
 
-Deferred this late on purpose: M1's T0 kill rates will say how much the symbol slice is actually
-worth, and it may be worth less than it looks.
+The core context mechanisms shipped at M0–M1. What remains is the expensive tail, sized by what
+M1's numbers said it was worth.
 
-- Symbol slice via tree-sitter/ctags, depth 1–2, budget-bounded
-- Packet tiers (`full`/`standard`/`focused`) and per-model tier assignment
+- LSP-backed slicing for languages where tree-sitter resolution is too coarse
 - `signals`: linter, type checker, test, coverage output
 - Conventions ingestion (`CLAUDE.md`, `AGENTS.md`, lint config)
 - Anonymization scrub
 - Prompt-prefix ordering for cache hits
-- Ablations 5–6
+- Ablation 6 (anonymization)
 
 ## M6 — Release *(~1.5 weeks)*
 
@@ -119,7 +135,8 @@ worth, and it may be worth less than it looks.
 
 | Risk | Signal it's real | Response |
 | --- | --- | --- |
-| **Panel lift is small** | M2 ablation shows +2–3 points over best single model | Reposition: the value is T0/T1 filtering, not the panel. Cut to 2 models, keep verification. |
+| **Context starvation persists** | M1 shows absence-claim FP rate still high after slice + T0.5 | The premise of ADR-0006 is wrong. Escalate: full-file context for all reviewers, or restrict the tool to positive claims only and refuse to publish absence claims at all. |
+| **Panel lift is small** | M2 ablation shows +2–3 points over best single model | Reposition: the value is T0/T0.5/T1 filtering, not the panel. Cut to 2 models, keep verification. |
 | **Refutation not worth its cost** | M2 precision lift per dollar is poor | Make T2 opt-in; lean harder on T0/T1 and independent-family count. |
 | Model-written repros are unreliable | M3 shows `CONFIRMED_EXECUTABLE` false positives | Require the repro to reference the cited symbol; add a repro-sanity metric; demote the verdict's rank. |
 | Cost per PR too high for casual use | `balanced` exceeds ~$1/PR | Push `cheap` as default; lean on prompt caching, batch, and local models. |

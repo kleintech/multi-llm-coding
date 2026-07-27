@@ -10,6 +10,7 @@ differently, and where reversing later would be expensive.
 | [0003](0003-family-not-model-as-quorum-unit.md) | Model *family*, not model, is the quorum unit | Without it, the tool reports independence it does not have |
 | [0004](0004-execution-over-consensus.md) | Execution outranks consensus | The difference between this and a prompt that asks three models |
 | [0005](0005-precision-over-recall.md) | Precision over recall, enforced by hard caps | Determines whether anyone leaves the tool switched on |
+| [0006](0006-context-sufficiency.md) | Absence claims are a routing problem, not a context-size problem | Addresses the failure mode that kills naive multi-model review |
 
 Format: Context / Decision / Rationale / Consequences. Consequences must include what the decision
 costs — an ADR that only lists benefits hasn't finished thinking.

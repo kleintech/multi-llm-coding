@@ -14,6 +14,8 @@
                          │  2. PANEL FAN-OUT                   │
                          │  N × (model, persona) reviewers      │
                          │  blind to each other, blind to author│
+                         │  pass A → findings | context request │
+                         │  pass B → findings (expanded packet) │
                          │  → Finding[] (structured)           │
                          └──────────────┬──────────────────────┘
                          ┌──────────────▼──────────────────────┐
@@ -24,9 +26,10 @@
                          └──────────────┬──────────────────────┘
                          ┌──────────────▼──────────────────────┐
                          │  4. VERIFICATION LADDER             │
-                         │  T0 reference check (static)         │
-                         │  T1 sandbox repro    (execution)     │
-                         │  T2 refutation panel (rival models)  │
+                         │  T0  reference check   (static)      │
+                         │  T0.5 falsification    (repo search) │
+                         │  T1  sandbox repro     (execution)   │
+                         │  T2  refutation panel  (rival models)│
                          │  → VerifiedCluster[]                │
                          └──────────────┬──────────────────────┘
                          ┌──────────────▼──────────────────────┐
@@ -126,14 +129,43 @@ findings. The matrix gives both, and lets you spend more on models that earn it.
 
 Persona definitions, and why these seven, are in [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md).
 
-### 3.2 Blindness
+### 3.2 The context negotiation pass
+
+The packet builder guesses what a reviewer needs. It will sometimes guess wrong, and a reviewer
+that silently proceeds on an insufficient packet produces exactly the confident, context-starved
+false positive this tool exists to suppress. So round 1 is two fixed passes rather than one call:
+
+- **Pass A.** The reviewer receives the packet and returns *either* findings *or* a
+  `context_request`: up to 8 symbols, files, or call sites it needs in order to judge. The prompt
+  is explicit that requesting context is the correct move when the packet is insufficient, and
+  that guessing is not — the failure mode being designed against is a model that would rather
+  answer than admit it cannot see enough.
+- **Pass B.** Always exactly one, and skipped entirely if pass A returned findings. The requested
+  symbols are resolved by the slicer, appended to the packet, and the reviewer is re-invoked.
+  Unresolvable requests come back marked as such — "you asked for `verify_token`; it does not
+  exist in this repository" is itself a strong signal, and a reviewer that then still claims a
+  guard is missing has just had its claim independently corroborated.
+
+Two calls maximum per reviewer, decided by a fixed rule, so the run structure stays deterministic
+and the worst-case cost stays computable before dispatch — the properties
+[ADR-0001](adr/0001-deterministic-orchestration.md) exists to protect. This is the bounded,
+in-leaf form of adaptive investigation that ADR-0001 anticipated; the orchestrator still does not
+make judgment calls.
+
+Whether pass B pays for itself is an open empirical question and an M1 ablation. The cheap
+alternative — one pass, larger packet for everyone — may well win on cost per confirmed finding.
+The measurement to watch is not false-positive rate alone but **false positives per dollar**,
+since a bigger packet for every reviewer and a second pass for the few who need it buy the same
+thing at very different prices.
+
+### 3.3 Blindness
 
 Round-1 reviewers receive: the packet, their persona brief, the output schema. They do **not**
 receive: other reviewers' findings, the panel roster, prior runs on this PR, or any indication
 that other reviewers exist. Blindness is what makes "three families found this independently" a
 real signal rather than an echo.
 
-### 3.3 Concurrency and failure
+### 3.4 Concurrency and failure
 
 All round-1 calls are issued concurrently, bounded by a semaphore (default 8). A reviewer that
 errors after retries, times out, or returns unparseable output is dropped from the run with a
@@ -141,7 +173,7 @@ recorded reason. **The pipeline never fails because one provider is down** — i
 surviving panel and reports degraded composition in the summary. If fewer than two independent
 families survive, the run is marked `INCONCLUSIVE` and publishes nothing but a notice.
 
-### 3.4 Determinism
+### 3.5 Determinism
 
 `temperature=0` where the provider honors it, fixed `seed` where supported, fixed persona order,
 fixed packet serialization. This does not make LLM output deterministic — it makes the *run
@@ -173,12 +205,16 @@ what counts as one family.
 Detailed rules in [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md#verification-ladder). In summary:
 
 - **T0 — reference check** (static, free, always). Does the cited file exist? Is the cited line in
-  the diff? Do quoted code fragments actually appear in the packet? Kills fabricated citations,
-  which are the single largest false-positive class.
+  the diff? Do quoted code fragments actually appear in the packet? Kills fabricated citations.
+- **T0.5 — falsification search** (static, free, absence claims only). For findings asserting that
+  something is *missing* — the dominant false-positive class — run the reviewer's own declared
+  falsifiers across the whole repository, plus a caller-path walk. Repairs the reviewer's context
+  gap mechanically and reframes the finding rather than dropping it.
 - **T1 — sandbox repro** (execution, cheap, when a repro is supplied). Reviewers are asked to
   attach an executable repro. It runs in a sandbox. Pass/fail is a *fact*, not an opinion.
 - **T2 — refutation** (models, expensive, when T1 is unavailable). Two reviewers from families
-  that did **not** raise the finding are asked to refute it, with a prompt biased toward refutation.
+  that did **not** raise the finding are asked to refute it, with a prompt biased toward refutation
+  and a packet strictly larger than the finder's.
 - **T3 — advisory** (no verification). Design and style claims, which are unverifiable by
   construction. Never inline, always collapsed, hard-capped.
 

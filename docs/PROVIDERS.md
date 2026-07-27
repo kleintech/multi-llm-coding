@@ -199,11 +199,21 @@ proceeds.
 N_findings × 2 × packet, and *that* is the term that runs away — thirty raw findings on a large
 packet is sixty full-context calls. Three mitigations, in order of importance:
 
-1. T0 runs before T2 and is free. Every fabricated finding it kills is two refutation calls saved.
-2. Refuters get a **reduced packet**: the finding, the cited file, and its symbol slice — not the
-   whole diff. Refutation is a narrow question.
-3. Hard cap on findings entering T2 (default 25, ranked by severity × independent families).
+1. T0 and T0.5 run before T2 and are free. Every fabricated or mechanically-falsified finding they
+   kill is two refutation calls saved. This is the cheapest lever by a wide margin: spend
+   engineering effort here before optimizing anything about the model calls.
+2. Hard cap on findings entering T2 (default 25, ranked by severity × independent families).
    Overflow is recorded and reported, not silently dropped.
+3. Refuters share a cacheable prompt prefix, so the marginal cost of a refutation is far below the
+   packet's list price on providers with prompt caching.
+
+**What not to do:** shrink the refuter's packet. It is the obvious saving — refutation looks like a
+narrow question — and it is a false economy that breaks the mechanism. Refuting "nothing validates
+this" requires seeing the validator, which is outside the diff by construction. A starved refuter
+reproduces the finder's blind spot and rubber-stamps precisely the context-starvation false
+positives T2 exists to catch. Refuters get **more** context than finders; see
+[`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md#t2--refutation-models-expensive-the-fallback). Cut the
+number of refutations, never their context.
 
 **Prompt caching.** The packet is a large shared prefix across every reviewer using the same tier.
 Providers with prompt caching (Anthropic, OpenAI, Gemini implicit caching) cut the dominant cost

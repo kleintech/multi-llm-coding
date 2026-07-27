@@ -73,6 +73,15 @@ with different capabilities.
         "content": "a complete, runnable snippet",
         "expect":  "fails_before_fix"
       },
+
+      // --- absence claims: see §2.3 ---
+      "asserts_absence": false,        // "X is never validated / handled / closed / tested"
+      "absence_check": {               // REQUIRED when asserts_absence is true
+        "symbols":  ["validate_payload", "Schema.check"],   // what would falsify this claim
+        "patterns": ["validat", "sanitiz", "assert_"],      // regex, searched repo-wide
+        "scope":    "repo | call_path | file"
+      },
+
       "confidence": 0.0                // self-reported; see §2.1
     }
   ]
@@ -99,6 +108,32 @@ Reviewers self-assign `claim_type` and are told plainly that `design` findings w
 into a footnote. This is an explicit incentive against the most common LLM review output, which is
 confident architectural opinion.
 
+### 2.3 Absence claims — the dominant false-positive class
+
+`asserts_absence` is orthogonal to `claim_type` and exists because of a categorical problem that
+more context does not fix.
+
+Most LLM review false positives are **negative existence claims**: *"this input is never
+validated," "this error is never handled," "nothing closes this handle," "no test covers this
+branch."* They are the natural output of a model shown a diff, because a diff is precisely the
+view in which everything outside it is invisible.
+
+The problem is structural, not a matter of packet size. **A positive claim can be verified against
+a partial packet; an absence claim cannot.** "Line 42 inverts this condition" is checkable from the
+hunk. "Nothing validates this" is a claim about the *whole repository*, and no packet is the whole
+repository. Enlarging the packet lowers the rate and never closes the category — there is always
+more code outside the window. Every review tool that treats context size as the fix is chasing an
+asymptote.
+
+So absence claims are routed differently. A reviewer making one must declare **what would falsify
+it** — the symbols and patterns whose existence anywhere in the repo would prove it wrong. That
+declaration is not a courtesy; it converts an unfalsifiable assertion into a falsifiable one, and
+the pipeline then performs the search the reviewer could not (§3, T0.5).
+
+Reviewers that assert absence without a populated `absence_check` are `MALFORMED`. Being forced to
+name a falsifier is itself a filter: a model that cannot say what would disprove its claim is
+usually pattern-matching rather than reasoning about this code.
+
 ---
 
 ## 3. Verification ladder
@@ -114,11 +149,54 @@ Runs on every finding. Pure Python, no models.
 | `quote`, normalized for whitespace, appears at the cited location | `INVALID_REFERENCE` |
 | finding is not a restatement of an entry already in packet `signals` (linter/type/CI output) | `REDUNDANT` |
 | `behavioral` finding has a non-empty `failure_case` | `MALFORMED` |
+| `asserts_absence` finding has a populated `absence_check` | `MALFORMED` |
 
 `INVALID_REFERENCE` findings are **dropped silently and never surfaced**, not even in the collapsed
 section. A reviewer that cannot cite the code it is complaining about did not read the code. This
 one check is expected to remove the plurality of false positives; the bench (`docs/EVALUATION.md`)
 tracks the per-model T0 kill rate, which is a direct measure of a panel member's usefulness.
+
+### T0.5 — falsification search (static, free, absence claims only)
+
+Runs on every finding with `asserts_absence: true`. Pure Python and ripgrep, no models. This is
+the stage that answers "the reviewer couldn't see the guard."
+
+The reviewer named what would falsify its claim. The pipeline now runs that search across the
+**entire repository** — not the packet, not the diff, the repo — which is exactly the search the
+reviewer was structurally unable to perform:
+
+1. **Declared search.** `absence_check.symbols` and `.patterns`, repo-wide.
+2. **Caller-path walk.** Resolve callers of the changed function to depth 2 and search their bodies
+   too. Catches the single most common case by far: validation that happens one or two frames up
+   from the diff.
+3. **Sibling-convention search.** If the claim is "no test covers this," look where this repo
+   actually puts tests, using the `repo_card`'s conventions, rather than assuming a layout.
+
+Outcomes:
+
+| Result | Verdict | Rationale |
+| --- | --- | --- |
+| No match anywhere | `ABSENCE_SUPPORTED` → proceed to T2 with the negative result attached | The reviewer's claim survived the search it proposed. Strong signal. |
+| Match found **inside** the reviewer's packet | `MALFORMED` → drop | The falsifier was in front of it and it missed it. That is a reading failure, not a context failure. |
+| Match found **outside** the packet | `ABSENCE_UNSUPPORTED` → T2 **with the matched code injected** | The context-starvation case. Do not drop — see below. |
+
+The third row is the important one, and the reason this is a routing stage rather than a filter.
+A match does **not** mean the finding is wrong. A validator that exists but is wrong, or that
+covers a different case, or that runs on the wrong branch, is still a real bug — and it is a
+*better* bug than the one originally reported. So the finding is not dropped. It is escalated to
+refutation with the found code attached and the question reframed:
+
+> A reviewer claimed X is never validated. It was wrong that nothing exists: here is
+> `validate_payload()` at `api/guards.py:88`, called from `handle_request()` at `api/routes.py:41`.
+> **Does that guard actually cover the case the reviewer described?** Answer only that.
+
+This converts a false positive into a precise question, and it is the highest-value transformation
+in the pipeline. The reviewer's context gap is repaired mechanically and for free, at the exact
+moment it matters, without having shipped the whole repository to every reviewer up front.
+
+Findings surviving T0.5 as `ABSENCE_SUPPORTED` are also strong T2 inputs: the refuter is told the
+repo-wide search already came back empty, so "I bet there's a guard somewhere" is not available to
+it as a lazy refutation.
 
 ### T1 — sandbox repro (execution, cheap, when available)
 
@@ -148,7 +226,16 @@ For clusters still unresolved. Select two refuters:
 - whose packet tier included the cited code (§2.1 of `ARCHITECTURE.md`),
 - preferring families not yet used as refuters in this run, to spread the load.
 
-Refuters receive the packet, the single finding, and a prompt biased toward refutation:
+**Refuters get more context than finders, never less.** The refuter packet is the finder's packet
+*plus* the cited file in full, its symbol slice at depth 2, all callers of the changed function,
+and any code T0.5 surfaced. This is deliberate and it is worth stating plainly, because the
+tempting cost optimization is the opposite — refutation looks like a narrow question, so it looks
+like it needs less. It does not. Refuting "nothing validates this" requires seeing the validator,
+which is by construction outside the diff. Starving the refuter of context guarantees it reproduces
+the finder's blind spot and rubber-stamps exactly the false positives this stage exists to kill.
+Refutation is where the context budget should be spent, not saved.
+
+Refuters receive that expanded packet, the single finding, and a prompt biased toward refutation:
 
 > A reviewer claims the following defect. Your job is to **refute** it. Show that the code is
 > correct as written, that the claimed failure case cannot occur, or that the reviewer misread the
