@@ -1,0 +1,275 @@
+# Architecture
+
+## 1. Shape of the system
+
+```
+                         ┌─────────────────────────────────────┐
+   git diff  ──────────► │  1. PACKET BUILDER                  │
+   repo state            │  diff + files + symbol slice +      │
+   CI output             │  conventions + tool output          │
+   PR metadata           │  → ReviewPacket (tiered by budget)  │
+                         └──────────────┬──────────────────────┘
+                                        │  (identical packet to every reviewer)
+                         ┌──────────────▼──────────────────────┐
+                         │  2. PANEL FAN-OUT                   │
+                         │  N × (model, persona) reviewers      │
+                         │  blind to each other, blind to author│
+                         │  → Finding[] (structured)           │
+                         └──────────────┬──────────────────────┘
+                         ┌──────────────▼──────────────────────┐
+                         │  3. CLUSTERING                      │
+                         │  dedup across reviewers;             │
+                         │  count independent model families    │
+                         │  → FindingCluster[]                 │
+                         └──────────────┬──────────────────────┘
+                         ┌──────────────▼──────────────────────┐
+                         │  4. VERIFICATION LADDER             │
+                         │  T0 reference check (static)         │
+                         │  T1 sandbox repro    (execution)     │
+                         │  T2 refutation panel (rival models)  │
+                         │  → VerifiedCluster[]                │
+                         └──────────────┬──────────────────────┘
+                         ┌──────────────▼──────────────────────┐
+                         │  5. ADJUDICATION & RANKING          │
+                         │  publication decision table, caps    │
+                         └──────────────┬──────────────────────┘
+                         ┌──────────────▼──────────────────────┐
+                         │  6. RENDERERS                       │
+                         │  GitHub review │ terminal │ SARIF   │
+                         │  JSON run record (always)            │
+                         └─────────────────────────────────────┘
+```
+
+Stages 1, 3, 5, and 6 are deterministic Python. Stages 2 and 4 call models. This split is the
+single most important structural decision in the project; see
+[ADR-0001](adr/0001-deterministic-orchestration.md).
+
+## 2. Stage 1 — the review packet
+
+Reviewers hallucinate in proportion to what they cannot see. A bare unified diff is the worst
+possible input: it invites confident claims about functions the model has never read. The packet
+builder's job is to make the diff *legible*.
+
+### Contents
+
+| Section | Source | Notes |
+| --- | --- | --- |
+| `intent` | PR title + body, commit messages, linked issue | **Untrusted.** Fenced; see `SECURITY.md`. Anonymized (§2.3). |
+| `diff` | `git diff <base>...<head>`, unified, 10 lines context | Canonical. Per-file, with stable hunk IDs. |
+| `changed_files` | Full post-image of each changed file | Truncated per budget tier; hunks always retained. |
+| `symbol_slice` | Definitions of symbols referenced in the diff but defined outside it | The expensive, high-value part. See §2.2. |
+| `conventions` | `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, lint/type config, `.editorconfig` | Tells reviewers what "correct style" means here so they stop guessing. |
+| `signals` | Existing CI logs, test results, coverage delta, linter output | Prevents the panel from re-reporting what the linter already caught. |
+| `repo_card` | Language, framework, package manager, test command, entrypoints | Cheap orientation. Generated once, cached. |
+
+### 2.1 Budget tiers
+
+Panel members differ by an order of magnitude in context window and by 10× in price. The builder
+emits the packet at three tiers and each adapter takes the largest it can afford under its
+per-call token cap:
+
+- **`full`** — everything above, whole files, symbol slice depth 2.
+- **`standard`** — whole files up to 1500 lines, symbol slice depth 1, signals truncated.
+- **`focused`** — hunks with 40 lines of context, symbol slice depth 1 restricted to symbols
+  appearing in hunks, no whole files.
+
+Tier assignment is recorded on the run so a finding can always be traced to what its author
+actually saw. **A reviewer that only got `focused` is not allowed to be a refuter for claims about
+code outside its packet** — this is a correctness rule, not an optimization.
+
+### 2.2 Symbol slice
+
+For each identifier referenced in changed hunks but defined elsewhere, include its definition.
+Implementation ladder, cheapest first:
+
+1. **ctags / tree-sitter** — language-agnostic, fast, no project setup. Default.
+2. **LSP** (`pylsp`, `tsserver`, `gopls`) via a short-lived client — accurate, slow, requires the
+   project to be installable. Opt-in for local runs.
+3. **grep fallback** — `rg '\b(def|class|func|function|const) <sym>'`. Last resort.
+
+Depth 1 = direct references. Depth 2 = references of those definitions. Depth 2 blows up fast;
+cap by token budget with a breadth-first frontier and record what was elided so the packet can say
+"37 further definitions omitted" rather than silently lying by omission.
+
+### 2.3 Anonymization
+
+Before the packet leaves the builder, strip authorship signals:
+
+- `Co-Authored-By:` trailers, `Generated with <tool>` footers, `Claude-Session:` lines
+- Vendor/model names in the PR body and commit messages → replaced with `[tool]`
+- Bot account names in the intent section → `[automation]`
+
+Reason: models defer. A reviewer told the code came from a frontier model finds fewer problems
+than one told nothing, and a reviewer told the code came from a *rival* model may find more than
+it should. Neither is what we want. Reviewers are told only: *"This diff was written by an
+anonymous contributor. Assume it is wrong until you can show it is right."*
+
+This is a heuristic scrub, not a guarantee — code style and comment idiom leak authorship. It
+removes the loud signals cheaply. Nothing downstream depends on it holding perfectly.
+
+## 3. Stage 2 — panel fan-out
+
+### 3.1 The panel is a matrix, not a list
+
+A panel entry is a `(model, persona, tier)` triple. Running one model across all personas gives
+prompt diversity without weight diversity; running all models on one generic "review this"
+prompt gives weight diversity without lane separation, and you get five copies of the same three
+findings. The matrix gives both, and lets you spend more on models that earn it.
+
+```
+                 contract   concurrency   security   failure   compat   tests   intent
+  gpt-5.6-sol       ●            ●                      ●
+  gemini-3.1-pro    ●                         ●                   ●
+  deepseek-v4-pro                ●            ●                            ●
+  glm-5.2 (local)                                       ●                          ●
+```
+
+Persona definitions, and why these seven, are in [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md).
+
+### 3.2 Blindness
+
+Round-1 reviewers receive: the packet, their persona brief, the output schema. They do **not**
+receive: other reviewers' findings, the panel roster, prior runs on this PR, or any indication
+that other reviewers exist. Blindness is what makes "three families found this independently" a
+real signal rather than an echo.
+
+### 3.3 Concurrency and failure
+
+All round-1 calls are issued concurrently, bounded by a semaphore (default 8). A reviewer that
+errors after retries, times out, or returns unparseable output is dropped from the run with a
+recorded reason. **The pipeline never fails because one provider is down** — it proceeds with the
+surviving panel and reports degraded composition in the summary. If fewer than two independent
+families survive, the run is marked `INCONCLUSIVE` and publishes nothing but a notice.
+
+### 3.4 Determinism
+
+`temperature=0` where the provider honors it, fixed `seed` where supported, fixed persona order,
+fixed packet serialization. This does not make LLM output deterministic — it makes the *run
+structure* reproducible, which is what matters for debugging and for the eval bench. Every call's
+request and response is written to the run record.
+
+## 4. Stage 3 — clustering
+
+Two reviewers describing the same bug in different words must collapse to one cluster, or the
+"independent families" count is meaningless and the PR gets duplicate comments.
+
+Candidate pairs are those overlapping in file and line range (±5 lines). Within candidates,
+cluster by cosine similarity of finding embeddings (`title + body`) above a tuned threshold
+(start at 0.82; calibrate on the bench). Embeddings via a small cheap model — this is one place
+where a single-vendor dependency is acceptable because a clustering mistake is recoverable and
+visible.
+
+Deliberately *not* using an LLM to dedup: it is slow, nondeterministic, and it is the stage most
+likely to silently merge two distinct bugs into one and drop the second. Threshold-based
+clustering fails visibly (duplicate comments) rather than invisibly (dropped findings). Ties and
+near-threshold pairs are recorded for bench calibration.
+
+Each cluster carries `independent_families: int` — the number of distinct **model families**
+(not models, not reviewers) that raised it. See [`PROVIDERS.md`](PROVIDERS.md#model-families) for
+what counts as one family.
+
+## 5. Stage 4 — verification ladder
+
+Detailed rules in [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md#verification-ladder). In summary:
+
+- **T0 — reference check** (static, free, always). Does the cited file exist? Is the cited line in
+  the diff? Do quoted code fragments actually appear in the packet? Kills fabricated citations,
+  which are the single largest false-positive class.
+- **T1 — sandbox repro** (execution, cheap, when a repro is supplied). Reviewers are asked to
+  attach an executable repro. It runs in a sandbox. Pass/fail is a *fact*, not an opinion.
+- **T2 — refutation** (models, expensive, when T1 is unavailable). Two reviewers from families
+  that did **not** raise the finding are asked to refute it, with a prompt biased toward refutation.
+- **T3 — advisory** (no verification). Design and style claims, which are unverifiable by
+  construction. Never inline, always collapsed, hard-capped.
+
+## 6. Stage 5 — adjudication
+
+A publication decision table, not a magic score. See
+[`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md#publication-decision-table). Two structural rules:
+
+- **Recusal.** If the diff's author is known to be model family F, no reviewer from F may vote in
+  refutation. In the common case (Claude wrote the code) this means Claude models can participate
+  in round 1 as finders but not in adjudication. Configured via `author_family` or inferred from
+  commit trailers *before* anonymization.
+- **One vote per family.** Two `gpt-5.6-*` reviewers agreeing is one vote, not two.
+
+## 7. Stage 6 — renderers
+
+The run record — a JSON document containing the packet hash, panel roster, every request/response,
+every cluster with its verification trace, and the final decision for each — is always written.
+Renderers are pure functions over it.
+
+- `github` — a single PR review with inline comments plus a summary comment. See
+  [`GITHUB_ACTION.md`](GITHUB_ACTION.md).
+- `terminal` — for local runs.
+- `sarif` — for GitHub code scanning / other consumers.
+- `json` — the run record itself, the input to the eval bench.
+
+Because renderers are pure over a persisted record, a run can be re-rendered without re-calling
+any model. This matters: tuning the publication thresholds is a fast offline loop over saved runs,
+not an expensive re-run.
+
+## 8. Repository layout
+
+```
+crossexam/
+  core/
+    packet.py          # ReviewPacket, budget tiers, anonymization
+    slicing.py         # symbol slice: ctags / tree-sitter / LSP / grep
+    models.py          # Finding, FindingCluster, RunRecord, Verdict (pydantic)
+    cluster.py         # embedding + overlap clustering
+    ladder.py          # T0..T3 verification
+    adjudicate.py      # decision table, ranking, caps
+    pipeline.py        # the state machine
+  providers/
+    base.py            # Reviewer protocol
+    litellm_backend.py # default
+    openrouter.py      # thin config profile over litellm
+    local.py           # ollama / vLLM
+    capability.py      # structured-output ladder, per-model capability matrix
+  personas/
+    *.md               # one brief per persona, versioned
+  sandbox/
+    runner.py          # T1 execution, container/isolation policy
+  render/
+    github.py  terminal.py  sarif.py
+  bench/
+    corpus/            # seeded-bug PRs + clean PRs
+    run.py  score.py
+  cli.py
+.github/workflows/
+  crossexam-collect.yml   # untrusted, no secrets
+  crossexam-review.yml    # trusted, workflow_run
+panel.example.yaml
+```
+
+## 9. Deployment modes
+
+| Mode | Where | Panel | Sandbox | Notes |
+| --- | --- | --- | --- | --- |
+| **CI** | GitHub Action | Hosted APIs | Container, network-off | The primary surface. |
+| **Local** | Your PC | Hosted + local (Ollama/vLLM) | Native or container | Free reviewers for the noisy personas; full sandbox fidelity; no secret exposure. |
+| **Proxied** | Either, via LiteLLM Proxy | Whatever the proxy exposes | — | One key for the Action, central spend caps and caching, per-model logs. Optional. |
+
+The local mode is not a lesser mode. Running an open-weights model (GLM-5.2, DeepSeek-V4-Pro,
+Qwen3.7) locally as a persistent panel member costs nothing per run and adds a genuinely
+independent weight lineage, which is exactly the scarce resource. The natural topology for a
+single developer is: LiteLLM Proxy on the PC holding all keys plus local models, CI and local CLI
+both pointing at it.
+
+## 10. Cross-cutting concerns
+
+**Cost.** Every call is metered. Hard per-run and per-PR ceilings, enforced before dispatch, not
+after. Exceeding the ceiling truncates the panel rather than failing the run. See
+[`PROVIDERS.md`](PROVIDERS.md#cost-control).
+
+**Caching.** Packets are content-addressed by hash. A re-run with an unchanged packet and
+unchanged panel replays from the run record. Incremental PR updates review only the new commits'
+diff against the previously reviewed head, with the prior findings as suppressed context.
+
+**Observability.** The run record is the trace. Optional OpenTelemetry export (LiteLLM emits this
+natively) for anyone running the proxy.
+
+**Secrets.** Never in the packet, never in a prompt, never in a rendered comment. The packet
+builder runs a secret scan over its own output before dispatch and aborts on a hit — a review tool
+that ships your `.env` to five vendors is a worse outcome than any bug it could find.
