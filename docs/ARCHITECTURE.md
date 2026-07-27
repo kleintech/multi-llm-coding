@@ -207,7 +207,7 @@ Detailed rules in [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md#verification-ladder)
 - **T0 — reference check** (static, free, always). Does the cited file exist? Is the cited line in
   the diff? Do quoted code fragments actually appear in the packet? Kills fabricated citations.
 - **T0.5 — falsification search** (static, free, absence claims only). For findings asserting that
-  something is *missing* — the dominant false-positive class — run the reviewer's own declared
+  something is *missing* — a hypothesized major false-positive class — run the reviewer's declared
   falsifiers across the whole repository, plus a caller-path walk. Repairs the reviewer's context
   gap mechanically and reframes the finding rather than dropping it.
 - **T1 — sandbox repro** (execution, cheap, when a repro is supplied). Reviewers are asked to

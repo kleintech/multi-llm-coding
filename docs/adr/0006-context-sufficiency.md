@@ -7,13 +7,20 @@ cost optimization previously described in `PROVIDERS.md` §6.
 
 ## Context
 
-The characteristic failure of naive multi-model review — and the one observed in this project's
-own prior experiments — is that reviewers given only a diff report defects that are already
-handled elsewhere in the codebase. "This input is never validated," where a validator runs two
-frames up. The result is a false-positive rate high enough to make the tool unusable.
+A reported failure of naive multi-model review, including in this project's own prior
+experiments, is that reviewers given only a diff report defects that are already handled
+elsewhere in the codebase, at a false-positive rate high enough to make the tool unusable.
 
-The obvious response is "send more context." That response is insufficient, and understanding why
-determines the design.
+**This ADR rests on a hypothesis about the *shape* of those false positives that has not been
+measured.** The hypothesis is that they are disproportionately *absence* claims — "this input is
+never validated," where a validator runs two frames up — rather than positive misreadings of code
+the reviewer could see. It is a plausible reading of the reported symptom and it is consistent
+with how diffs hide surrounding code, but no one has classified an actual corpus of these false
+positives. M1 measures it (`EVALUATION.md` §5a); if absence claims turn out to be a minority
+class, the machinery below is over-built and should shrink.
+
+Granting the hypothesis, the obvious response is "send more context." That response is
+insufficient, and understanding why determines the design.
 
 Sort review claims into two kinds:
 

@@ -108,15 +108,20 @@ Reviewers self-assign `claim_type` and are told plainly that `design` findings w
 into a footnote. This is an explicit incentive against the most common LLM review output, which is
 confident architectural opinion.
 
-### 2.3 Absence claims — the dominant false-positive class
+### 2.3 Absence claims — a hypothesized major false-positive class
 
 `asserts_absence` is orthogonal to `claim_type` and exists because of a categorical problem that
 more context does not fix.
 
-Most LLM review false positives are **negative existence claims**: *"this input is never
-validated," "this error is never handled," "nothing closes this handle," "no test covers this
-branch."* They are the natural output of a model shown a diff, because a diff is precisely the
-view in which everything outside it is invisible.
+**Negative existence claims** — *"this input is never validated," "this error is never handled,"
+"nothing closes this handle," "no test covers this branch"* — are a natural output of a model
+shown a diff, because a diff is precisely the view in which everything outside it is invisible.
+
+The design **assumes** these account for a large share of false positives in diff-only review. That
+assumption is untested: it is inferred from the mechanism, not measured on a corpus. It is the
+premise of [ADR-0006](adr/0006-context-sufficiency.md) and the justification for T0.5, and
+`EVALUATION.md` §5a exists to check it at M1. If the share turns out to be small, most of what
+follows should be cut.
 
 The problem is structural, not a matter of packet size. **A positive claim can be verified against
 a partial packet; an absence claim cannot.** "Line 42 inverts this condition" is checkable from the

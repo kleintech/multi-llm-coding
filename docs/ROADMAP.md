@@ -25,7 +25,8 @@ it is the difference between a working reviewer and a noise generator.
 - Fan-out to 2 models × 2 personas, blind
 - T0 reference check; `asserts_absence` in the schema
 - **T0.5 falsification search** — declared-symbol and pattern search, repo-wide. Cheap to build
-  (it is ripgrep and a caller walk), and it targets the dominant false-positive class directly.
+  (it is ripgrep and a caller walk), and it targets the hypothesized dominant false-positive
+  class directly. M1 checks whether that class really is dominant.
 - Terminal renderer, run record persisted
 - `crossexam review --base main` works on a local repo
 

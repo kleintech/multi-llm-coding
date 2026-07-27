@@ -24,8 +24,9 @@ to review a diff and you will get sixty findings, of which perhaps six matter. A
 finding must survive a verification gauntlet before anyone sees it, and where a claim is
 *checkable*, it gets checked rather than voted on.
 
-Most of those false positives have one shape. A reviewer shown a diff reports that something is
-*missing* — "this input is never validated" — when the validator sits two frames up, outside the
+A large share of those false positives are believed to have one shape — though this is an
+assumption the project intends to measure, not an established result. A reviewer shown a diff
+reports that something is *missing* — "this input is never validated" — when the validator sits two frames up, outside the
 window. Sending a bigger diff does not fix this, because **absence cannot be established from a
 subset** and there is always more repo outside the window. crossexam instead makes reviewers
 declare what would disprove such a claim, then runs that search across the whole repository
