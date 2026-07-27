@@ -39,7 +39,9 @@ refutation, no sandbox.
 Deliberately before the interesting features, so every later choice is measured rather than
 argued.
 
-- Corpus: 40 seeded + 30 clean, Python and TypeScript. Historical pairs deferred to M4.
+- Corpus: 40 seeded + 30 clean + **every historical pair available at the time**, Python and
+  TypeScript. `ilm-realtor-535` is entry one and should be in from the start — historical pairs
+  are the population that matters, and deferring them was a holdover from before we had any.
 - `bench run` / `bench score`, LLM judge with cached judgments
 - Offline replay over run records
 - Symbol slice depth 2 + packet tiers, so slice depth becomes a sweepable parameter
@@ -60,7 +62,7 @@ The actual thesis of the project.
 - Clustering (embedding + line overlap), `independent_families`
 - T2 refutation with family exclusion and recusal
 - Publication decision table + caps
-- Personas: all 7, versioned
+- Personas: all 8, versioned, selectable per repo shape
 - Ablations 1–4 from [`EVALUATION.md`](EVALUATION.md#5-ablations-worth-running-before-v1)
 
 **Exit / go-no-go:** refutation demonstrably raises precision at acceptable cost, and panel lift
@@ -71,6 +73,8 @@ here rather than shipping as a default nobody benefits from.
 
 - `repro` field in the schema; personas ask for it
 - Sandbox runner: container, no network, no env, timeouts
+- Sandbox tiers (`unit` / `dom` / `browser`) with `t1_out_of_reach` when the runtime cannot
+  observe the claimed effect — a jsdom "refutation" of a layout bug is the worst possible verdict
 - T1 with the one-shot repair loop; counter-repros in T2
 - `CONFIRMED_EXECUTABLE` as top rank; `block_on` config
 
@@ -85,7 +89,7 @@ This is the feature that separates crossexam from a prompt.
 - Incremental review with content-hash finding identity and the state blob
 - Gating, debounce, spend ceilings
 - Composite action `kleintech/crossexam@v1`
-- Historical bug-fix corpus added to the bench
+- Historical bug-fix corpus added to the bench (starting from `bench/corpus/ilm-realtor-535`)
 
 **Exit:** running on this repository's own PRs. Dogfooding is the acceptance test.
 
@@ -95,6 +99,10 @@ The core context mechanisms shipped at M0–M1. What remains is the expensive ta
 M1's numbers said it was worth.
 
 - LSP-backed slicing for languages where tree-sitter resolution is too coarse
+- Non-code slice targets: schema, migrations, IDL/protobuf, OpenAPI, config
+- Composition-tree context, level 1 (where a component is *rendered*, not imported) —
+  `ARCHITECTURE.md` §2.2b. Levels 2–3 stay unscheduled until the bench justifies them.
+- Persona presets per repo shape; warn when a repo's dominant language has no persona covering it
 - `signals`: linter, type checker, test, coverage output
 - Conventions ingestion (`CLAUDE.md`, `AGENTS.md`, lint config)
 - Anonymization scrub
@@ -139,6 +147,8 @@ M1's numbers said it was worth.
 | **Context starvation persists** | M1 shows absence-claim FP rate still high after slice + T0.5 | The premise of ADR-0006 is wrong. Escalate: full-file context for all reviewers, or restrict the tool to positive claims only and refuse to publish absence claims at all. |
 | **Panel lift is small** | M2 ablation shows +2–3 points over best single model | Reposition: the value is T0/T0.5/T1 filtering, not the panel. Cut to 2 models, keep verification. |
 | **Refutation not worth its cost** | M2 precision lift per dollar is poor | Make T2 opt-in; lean harder on T0/T1 and independent-family count. |
+| **Persona set has more holes** | A real bug lands in no lane, as `rendering` did | Expected, not exceptional. Personas are config; add one and re-run the bench. Track per-persona unique contribution so dead lanes get dropped. |
+| **Composition-tree context is expensive or unreliable** | Level-1 render-site resolution misses the ilm-realtor-535 case, or blows the token budget | Accept the gap and document the class as out of reach; do not escalate to levels 2–3 on hope. |
 | Model-written repros are unreliable | M3 shows `CONFIRMED_EXECUTABLE` false positives | Require the repro to reference the cited symbol; add a repro-sanity metric; demote the verdict's rank. |
 | Cost per PR too high for casual use | `balanced` exceeds ~$1/PR | Push `cheap` as default; lean on prompt caching, batch, and local models. |
 | False positives still annoy maintainers | Dogfooding at M4 feels noisy | Lower caps before lowering thresholds. Fewer, better comments. |

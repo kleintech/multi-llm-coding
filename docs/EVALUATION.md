@@ -129,7 +129,7 @@ These aren't hypotheticals — each one could reasonably come back negative and 
    3, `paranoid.yaml` should be deleted rather than sold.
 2. **Refutation on/off.** T2 is the most expensive stage. Precision lift per dollar decides
    whether it survives contact with reality, or becomes opt-in.
-3. **Personas vs. generic.** 7 personas vs. every model given "review this diff." If lane
+3. **Personas vs. generic.** The full persona set vs. every model given "review this diff." If lane
    separation doesn't beat the generic prompt, the persona system is complexity for nothing.
 4. **Recusal.** Does excluding the author's family from refutation actually change outcomes, or is
    it a principle with no measurable effect? Run it both ways on Claude-authored seeded bugs. The

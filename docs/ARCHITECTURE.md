@@ -120,6 +120,45 @@ Depth 1 = direct references. Depth 2 = references of those definitions. Depth 2 
 cap by token budget with a breadth-first frontier and record what was elided so the packet can say
 "37 further definitions omitted" rather than silently lying by omission.
 
+Slice targets are **not only code symbols.** The one confirmed absence-claim false positive in
+[`OBSERVED_FAILURES.md`](OBSERVED_FAILURES.md) was disproved by a database schema. Schema files,
+migrations, IDL/protobuf, OpenAPI specs, and config are first-class slice targets; a slicer that
+only understands functions and classes misses the case this mechanism most clearly gets right.
+
+### 2.2b The composition tree — a third context relation
+
+Symbol slicing and caller walks both traverse the **module graph**. Some defects live on a
+relation the module graph does not express: *what wraps this element at render time, and what does
+it impose on it.*
+
+The motivating case is [`bench/corpus/ilm-realtor-535`](../bench/corpus/ilm-realtor-535.md). A PR
+added a popover with `z-index: 20`. Its ancestor row carried a pre-existing
+`transform: translateY(0)` from an entrance animation, and a non-`none` transform creates a
+stacking context — so the popover could never rise above sibling rows. Nothing in the diff is
+wrong on its own terms. The defect is an interaction between new code and an unchanged ancestor
+that the new code does not import, reference, or call. **Depth-∞ symbol slicing never reaches it.**
+
+The general class is wider than CSS: anything where behavior is imposed by an enclosing scope
+rather than a called dependency — React context providers and error boundaries, middleware chains,
+DI containers, decorators and aspects, inherited fixtures in a test suite, framework-enforced
+guarantees. It is also, notably, the class that defeats T0.5: a repo-wide search for a guard that
+is *structurally* rather than *lexically* present returns nothing and reads as corroboration.
+
+Approach, cheapest first — and this is a design sketch, not a settled mechanism:
+
+1. **Static composition edges.** For a changed component, find where it is *rendered* (JSX usage,
+   template inclusion, route registration), not where it is imported, and include the enclosing
+   element with its styles and props. One level up is likely most of the value.
+2. **Enclosing-scope registry.** Framework-specific: middleware chains for a matched route,
+   providers wrapping a subtree, decorators on an enclosing class. Requires per-framework
+   knowledge and is where this stops being cheap.
+3. **Runtime capture** — record the actual rendered tree from an existing test run and slice from
+   it. Most accurate, most invasive, almost certainly post-v1.
+
+Honest status: this is an identified gap with a sketched fix, not a solved problem. Level 1 is in
+scope for M5 and is the part with a clear cost/benefit. Levels 2 and 3 need evidence from the bench
+before they earn a milestone — which is exactly what the corpus entry above is for.
+
 ### 2.3 Anonymization
 
 Before the packet leaves the builder, strip authorship signals:
@@ -153,7 +192,9 @@ findings. The matrix gives both, and lets you spend more on models that earn it.
   glm-5.2 (local)                                       ●                          ●
 ```
 
-Persona definitions, and why these seven, are in [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md).
+Persona definitions, and why this set, are in [`REVIEW_PROTOCOL.md`](REVIEW_PROTOCOL.md). The set
+is configuration, not a constant — it is a claim about a given repo's failure surface, and that
+claim is repo-specific.
 
 ### 3.2 The context negotiation pass
 

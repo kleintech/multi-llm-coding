@@ -24,10 +24,37 @@ every finding so a regression in a brief is traceable.
 | `compat` | The blast radius outside the diff | Breaking API/schema/wire changes, migration ordering, backward compatibility, config default changes, behavior changes to existing callers |
 | `tests` | Whether the tests are real | Tests that pass regardless of the code, over-mocking, missing negative cases, assertions on the wrong thing, coverage that doesn't touch the changed branch |
 | `intent` | Does it do what it says | Diff vs. stated purpose, scope creep, silent behavior change, dead or unreachable additions, TODOs shipped as done |
+| `rendering` | What the user actually sees | Stacking contexts and z-index that cannot win, overflow/clip boundaries, portal and focus containment, layout shift, responsive breakage, hydration mismatch, disabled/loading states, accessible naming and keyboard reachability |
 
 `intent` deserves special mention: it is the persona most likely to catch the characteristic
 failure of AI-authored code, which is not "wrong" so much as "confidently solved a slightly
 different problem." Give it to a model from a different family than the author, always.
+
+`rendering` was added late, after a real production bug
+([`bench/corpus/ilm-realtor-535`](../bench/corpus/ilm-realtor-535.md)) proved the original seven
+had a hole: a popover that could not paint above the next row was a *correctness* defect —
+the feature was unusable — and not one of `contract`, `concurrency`, `security`, `failure`,
+`compat`, `tests`, or `intent` was briefed to look for it. Every lane would have read that diff
+and correctly reported nothing.
+
+**The general lesson is worth more than the specific persona.** The first seven lanes were derived
+from what backend defects look like, and were then presented as a general-purpose partition of
+"how code goes wrong." They were not. A persona set is a claim about a repository's failure
+surface, and that claim is repo-specific: a React app, a Rust systems crate, a data pipeline, and
+a Terraform module fail in overlapping but distinct ways. So:
+
+- Personas are **configuration, not constants** — `panel.yaml` selects them, and adding one is a
+  markdown file, not a code change.
+- Presets ship per repo shape (`personas/web.yaml`, `personas/backend.yaml`,
+  `personas/systems.yaml`, `personas/data.yaml`) rather than one universal set.
+- Config validation warns when a repo's detected languages have no persona covering them —
+  a repo that is 60% `.tsx` with no `rendering` reviewer is a silent blind spot, and silent is the
+  problem.
+- The bench measures **per-persona unique contribution**, so a lane that never finds anything in
+  your repo can be dropped and its budget spent elsewhere.
+
+Expect this list to grow and to be wrong in ways not yet observed. That is an argument for making
+personas cheap to add, not for guessing harder up front.
 
 ### Persona brief structure
 
@@ -238,6 +265,37 @@ Sandbox policy: ephemeral container, no network, no mounted secrets, wall-clock 
 Action runner; locally it uses the same container image so verdicts are portable. If no container
 runtime is available, T1 is skipped entirely and the run is marked `t1_unavailable` — silently
 degrading to model consensus without saying so would misrepresent every verdict in the run.
+
+### T1 reach: what execution cannot settle
+
+T1 is only as good as what the runtime can observe, and the default runtime observes less than it
+appears to. jsdom has **no layout and no paint** — it will happily assert that an element with
+`z-index: 20` is on top while a real browser paints it behind a sibling. A whole category of real,
+user-visible defects is therefore invisible to the default test runner, and a green test is not
+evidence of correctness for them.
+
+[`bench/corpus/ilm-realtor-535`](../bench/corpus/ilm-realtor-535.md) is the worked case: a popover
+unreachable behind the next row, caused by an ancestor's `transform` creating a stacking context.
+No jsdom assertion can detect it. A browser can, trivially — `elementFromPoint` at the popover's
+coordinates returns the wrong node.
+
+So the sandbox has **tiers**, and a repro declares which it needs:
+
+| Tier | Runtime | Settles |
+| --- | --- | --- |
+| `unit` | Language runtime only | Logic, data, error paths. The default. |
+| `dom` | jsdom / happy-dom | Component structure, props, event wiring. **Not** layout, paint, or geometry. |
+| `browser` | Headless Chromium in the sandbox image | Stacking, overflow, hit-testing, focus order, layout shift, hydration. |
+
+A `browser`-tier repro is heavier — a bigger image, a longer timeout (180s), and worth gating to
+repos where it earns its cost. Chromium is already present on many CI runners, so this is closer
+to a packaging decision than a research problem.
+
+The rule that matters: **a tier that cannot observe the claimed effect must not return a verdict.**
+A `dom`-tier repro for a layout claim yields `t1_out_of_reach`, not `REFUTED_EXECUTABLE`, and the
+finding falls through to T2. Letting an under-powered runtime "refute" a real bug would be the
+worst failure this system can produce — the highest-trust label in the design, applied backwards,
+killing a true positive.
 
 ### T2 — refutation (models, expensive, the fallback)
 
