@@ -24,14 +24,19 @@ to review a diff and you will get sixty findings, of which perhaps six matter. A
 finding must survive a verification gauntlet before anyone sees it, and where a claim is
 *checkable*, it gets checked rather than voted on.
 
-A large share of those false positives are believed to have one shape — though this is an
-assumption the project intends to measure, not an established result. A reviewer shown a diff
-reports that something is *missing* — "this input is never validated" — when the validator sits two frames up, outside the
-window. Sending a bigger diff does not fix this, because **absence cannot be established from a
-subset** and there is always more repo outside the window. crossexam instead makes reviewers
-declare what would disprove such a claim, then runs that search across the whole repository
-itself and hands the result back to the adjudicator. See
-[ADR-0006](docs/adr/0006-context-sufficiency.md).
+Those false positives do not have one shape, which is the main thing a small corpus from this
+project's predecessor established ([`OBSERVED_FAILURES.md`](docs/OBSERVED_FAILURES.md)). At least
+four distinct mechanisms produce them, and they need four different answers:
+
+| The model… | Fix |
+| --- | --- |
+| claims something is **missing** that exists outside its window | make it declare what would disprove the claim, then run that search repo-wide ([ADR-0006](docs/adr/0006-context-sufficiency.md)) |
+| infers the **wrong purpose** for the change — reads step 1 of a migration as violating the design it implements | put change intent first in the packet, always |
+| **fails to trace** context it was already given | no context fix exists; only cross-family refutation |
+| dresses a **style nit** as a correctness defect to get past a filter | never let a model self-certify past a filter |
+
+Note what the second and third rows mean: "send more context" is not the answer to most of this,
+and for the third row more context is actively counterproductive.
 
 ## The one-paragraph design
 
@@ -54,6 +59,7 @@ an OpenRouter key, your own LiteLLM Proxy, or local models on your own box.
 | [`docs/GITHUB_ACTION.md`](docs/GITHUB_ACTION.md) | Workflow design, the fork-PR security problem, idempotency, spend caps |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | How we prove the panel works: the bench, metrics, reviewer reputation |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Prompt injection, untrusted content fencing, sandbox model, secrets |
+| [`docs/OBSERVED_FAILURES.md`](docs/OBSERVED_FAILURES.md) | **Real false positives from the predecessor system, classified.** The only evidence-backed page here. |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones from M0 to v1.0 |
 | [`docs/adr/`](docs/adr/) | Architecture decision records for the load-bearing choices |
 

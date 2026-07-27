@@ -37,6 +37,28 @@ Secondary, per-model, and the numbers that actually drive panel composition:
   decision table (see `REVIEW_PROTOCOL.md` §2.1); this measurement is how a model earns the right
   to have its confidence count.
 
+## 1a. The clean-PR trap
+
+Before any corpus detail, one rule that a real failure in the predecessor system makes concrete
+([`OBSERVED_FAILURES.md`](OBSERVED_FAILURES.md#the-test-selection-trap)).
+
+Three tuning rounds there were run against a **clean, already-merged PR**. On a clean PR a correct
+adversary produces exactly one output: nothing. So the only reachable outcomes were false
+positives and silence — **a true positive was structurally impossible**. The adversary contributed
+zero real findings across all three rounds, which looks damning and is not evidence about the
+adversary at all. Recall was never measured, not once.
+
+Two consequences, both binding:
+
+1. **Every evaluation set must contain known defects.** A corpus of clean PRs measures precision
+   and nothing else, and precision alone cannot distinguish a good reviewer from a silent one.
+2. **Never tune against clean-only inputs.** Every prompt change that suppresses output scores as
+   an improvement, so the optimization gradient points directly at a model that says nothing. The
+   defect-bearing half of the corpus is what makes the gradient point somewhere useful.
+
+`bench score` refuses to report precision from a run whose corpus contains no seeded or historical
+defects, and prints why. A number that can only go one direction should not be printed at all.
+
 ## 2. The corpus
 
 Three sources, in ascending order of realism and cost:

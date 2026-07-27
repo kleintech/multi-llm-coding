@@ -57,13 +57,39 @@ builder's job is to make the diff *legible*.
 
 | Section | Source | Notes |
 | --- | --- | --- |
-| `intent` | PR title + body, commit messages, linked issue | **Untrusted.** Fenced; see `SECURITY.md`. Anonymized (§2.3). |
+| `intent` | PR title + body, commit messages, linked issue | **Required, first position.** Untrusted and fenced (`SECURITY.md`), authorship-anonymized (§2.3) — but never omitted or summarized away. See §2.0. |
 | `diff` | `git diff <base>...<head>`, unified, 10 lines context | Canonical. Per-file, with stable hunk IDs. |
 | `changed_files` | Full post-image of each changed file | Truncated per budget tier; hunks always retained. |
 | `symbol_slice` | Definitions of symbols referenced in the diff but defined outside it | The expensive, high-value part. See §2.2. |
 | `conventions` | `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, lint/type config, `.editorconfig` | Tells reviewers what "correct style" means here so they stop guessing. |
 | `signals` | Existing CI logs, test results, coverage delta, linter output | Prevents the panel from re-reporting what the linter already caught. |
 | `repo_card` | Language, framework, package manager, test command, entrypoints | Cheap orientation. Generated once, cached. |
+
+### 2.0 Intent comes first
+
+The `intent` section leads the packet, before the diff, and is never dropped by a budget tier.
+This is a direct consequence of an observed failure
+([`OBSERVED_FAILURES.md`](OBSERVED_FAILURES.md) class 2): a reviewer flagged a diff as violating an
+architecture decision record when the diff implemented **step 1 of a three-step migration that
+same ADR prescribed**, and retaining the flagged shortcut was correct at step 1. The ADR text was
+already in the model's context. The decisive missing input was one word in the PR title —
+"expand."
+
+The general shape: a diff shows *what changed*, never *what the change is for*. Reviewers asked to
+judge correctness without knowing the purpose will infer one, and a wrong inference produces
+findings that are internally coherent, well-cited, and entirely wrong. Multi-step migrations,
+feature flags behind a rollout, deliberate temporary shims, and staged deprecations are all cases
+where the code is correct only relative to an intent the diff cannot express.
+
+Order matters, not just presence. The predecessor system *gathered* PR title and body for the
+orchestrator's use and never passed them to the reviewer — the context existed and did not reach
+the model. Packet assembly asserts intent is present and first; an empty intent section is a
+recorded warning on the run, since it predicts this failure class.
+
+This sits in tension with `SECURITY.md`, which treats the PR description as attacker-controlled.
+The resolution is that intent is admissible as evidence about **scope and phase** and inadmissible
+as **instructions** or as a claim that the code is correct — see
+[`OBSERVED_FAILURES.md`](OBSERVED_FAILURES.md#the-intent-tension).
 
 ### 2.1 Budget tiers
 

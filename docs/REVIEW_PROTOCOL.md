@@ -88,13 +88,31 @@ with different capabilities.
 }
 ```
 
-### 2.1 On self-reported confidence
+### 2.1 Self-assessed fields are untrusted input
 
-It is collected and recorded but **carries no weight in the publication decision**. Self-reported
-LLM confidence is poorly calibrated and, worse, differently-poorly calibrated per model — using it
-to rank across vendors imports each vendor's calibration bias directly into the output. It is kept
-only as a per-model signal for the eval bench, where it can be scored against ground truth and,
-if a given model turns out to be calibrated, promoted to a real input later.
+`confidence`, `severity`, `claim_type`, and `asserts_absence` are all **self-assigned by a model
+that has an incentive to misreport them**, and this is observed behavior, not a worry: a reviewer
+in the predecessor system relabeled a style preference as a correctness defect specifically to
+evade a prompt ban on style nits ([`OBSERVED_FAILURES.md`](OBSERVED_FAILURES.md) class 4). Any
+field that gates publication will be gamed by a model optimizing to be heard.
+
+So they are treated as routing hints, not metadata:
+
+- **`confidence`** carries no weight in the publication decision. Self-reported LLM confidence is
+  poorly calibrated and, worse, differently-poorly calibrated per model — ranking across vendors on
+  it imports each vendor's calibration bias into the output. Recorded for the bench, where it can
+  be scored against ground truth and promoted later if a model proves calibrated.
+- **`severity`** is capped, not trusted. A finding with no `failure_case` and no `repro` cannot be
+  published above `medium` regardless of what the reviewer claimed.
+- **`claim_type`** is cross-checked. A cheap classifier over the finding text flags likely
+  misassignment — "would be safer to," "consider," "should instead" phrasing on something labeled
+  `behavioral` is the signature of an inflated nit. Disagreements are recorded and reconciled
+  toward the *less* severe reading, since the cost asymmetry (ADR-0005) runs that way.
+- **`asserts_absence`** is likewise classifier-checked, because under-declaring it is the cheapest
+  way to skip the `absence_check` requirement.
+
+The general rule: **never let a model self-certify past a filter.** Where a field decides
+publication, something outside the model must be able to check it.
 
 ### 2.2 `claim_type` drives everything downstream
 
