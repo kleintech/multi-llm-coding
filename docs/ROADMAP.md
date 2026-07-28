@@ -75,6 +75,8 @@ here rather than shipping as a default nobody benefits from.
 - Sandbox runner: container, no network, no env, timeouts
 - Sandbox tiers (`unit` / `dom` / `browser`) with `t1_out_of_reach` when the runtime cannot
   observe the claimed effect — a jsdom "refutation" of a layout bug is the worst possible verdict
+- Guard-vs-demonstrator check: reject a repro referencing an identifier absent from the review
+  target, before execution. Pure static check, no sandbox needed.
 - T1 with the one-shot repair loop; counter-repros in T2
 - `CONFIRMED_EXECUTABLE` as top rank; `block_on` config
 
@@ -100,8 +102,12 @@ M1's numbers said it was worth.
 
 - LSP-backed slicing for languages where tree-sitter resolution is too coarse
 - Non-code slice targets: schema, migrations, IDL/protobuf, OpenAPI, config
-- Composition-tree context, level 1 (where a component is *rendered*, not imported) —
-  `ARCHITECTURE.md` §2.2b. Levels 2–3 stay unscheduled until the bench justifies them.
+- **String-literal cross-language slicing** — resolve animation names, CSS/Tailwind classes, i18n
+  keys, DI tokens, route names to their definitions in other file types. Verified necessary by
+  `bench/corpus/ilm-realtor-535`; no other mechanism reaches it.
+- Composition-tree context (`ARCHITECTURE.md` §2.2b) stays **unscheduled** — the class is plausible
+  but has no verified corpus example, and its original motivating case turned out to be something
+  else. Schedule it when an entry demonstrates it, not before.
 - Persona presets per repo shape; warn when a repo's dominant language has no persona covering it
 - `signals`: linter, type checker, test, coverage output
 - Conventions ingestion (`CLAUDE.md`, `AGENTS.md`, lint config)

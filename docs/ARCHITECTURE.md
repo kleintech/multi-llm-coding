@@ -120,10 +120,28 @@ Depth 1 = direct references. Depth 2 = references of those definitions. Depth 2 
 cap by token budget with a breadth-first frontier and record what was elided so the packet can say
 "37 further definitions omitted" rather than silently lying by omission.
 
-Slice targets are **not only code symbols.** The one confirmed absence-claim false positive in
-[`OBSERVED_FAILURES.md`](OBSERVED_FAILURES.md) was disproved by a database schema. Schema files,
-migrations, IDL/protobuf, OpenAPI specs, and config are first-class slice targets; a slicer that
-only understands functions and classes misses the case this mechanism most clearly gets right.
+Slice targets are **not only code symbols**, and references are **not only symbol references.**
+Two verified cases, both of which a symbol-only slicer misses entirely:
+
+- The one confirmed absence-claim false positive in
+  [`OBSERVED_FAILURES.md`](OBSERVED_FAILURES.md) was disproved by a **database schema**. Schema
+  files, migrations, IDL/protobuf, OpenAPI specs, and config are first-class slice targets.
+- [`ilm-realtor-535`](../bench/corpus/ilm-realtor-535.md) turns on a CSS `@keyframes` block reached
+  from an **animation name embedded in a string literal** (`animate-[slide-up-in_…_both]` in a
+  Tailwind class). tree-sitter finds no symbol, LSP resolves nothing, and the import graph has no
+  such edge — but without that keyframe body the reviewer cannot know the animation terminates on
+  a `transform`, which is the whole defect.
+
+The second is a general class: **cross-language references keyed by string literals.** Tailwind and
+CSS-module class names, i18n keys, DI container tokens, SQL in template strings, route names,
+feature-flag keys, event names. All are real edges in the program that no language server models.
+
+A tractable approach: harvest string literals from changed hunks, and for each, search the repo for
+a *definition-shaped* occurrence in files of other types — `@keyframes <s>`, `.<s> {`, `"<s>":` in
+a locale file, a route table entry. Cheap (ripgrep over a candidate set), high-precision when the
+literal is distinctive, and it degrades to nothing when it is not. Worth bounding hard: common
+short strings will match everywhere and must be dropped by a frequency threshold rather than
+flooding the packet.
 
 ### 2.2b The composition tree — a third context relation
 
@@ -131,18 +149,26 @@ Symbol slicing and caller walks both traverse the **module graph**. Some defects
 relation the module graph does not express: *what wraps this element at render time, and what does
 it impose on it.*
 
-The motivating case is [`bench/corpus/ilm-realtor-535`](../bench/corpus/ilm-realtor-535.md). A PR
-added a popover with `z-index: 20`. Its ancestor row carried a pre-existing
-`transform: translateY(0)` from an entrance animation, and a non-`none` transform creates a
-stacking context — so the popover could never rise above sibling rows. Nothing in the diff is
-wrong on its own terms. The defect is an interaction between new code and an unchanged ancestor
-that the new code does not import, reference, or call. **Depth-∞ symbol slicing never reaches it.**
+The class: anything where behavior is imposed by an **enclosing scope** rather than a called
+dependency — React context providers and error boundaries, middleware chains, DI containers,
+decorators and aspects, inherited fixtures in a test suite, framework-enforced guarantees. A
+reviewer asking "is this request authorized?" cannot answer from a handler whose authorization is
+applied by router configuration it never references.
 
-The general class is wider than CSS: anything where behavior is imposed by an enclosing scope
-rather than a called dependency — React context providers and error boundaries, middleware chains,
-DI containers, decorators and aspects, inherited fixtures in a test suite, framework-enforced
-guarantees. It is also, notably, the class that defeats T0.5: a repo-wide search for a guard that
-is *structurally* rather than *lexically* present returns nothing and reads as corroboration.
+This class also defeats T0.5, which is the sharper reason to care: a repo-wide search for a guard
+that is *structurally* rather than *lexically* present returns nothing, and that emptiness reads as
+corroboration of the reviewer's absence claim. The mechanism designed to kill false positives
+would promote one.
+
+> **Provenance, and a caution.** This section was originally motivated by
+> [`ilm-realtor-535`](../bench/corpus/ilm-realtor-535.md), on the assumption that the offending
+> `transform` sat on an ancestor component. Reading the actual diffs showed otherwise — it is on
+> the *same element*, from a constant in the *same file*, and that entry's real gap is
+> string-literal cross-language resolution (§2.2). **This class currently has no verified example
+> in the corpus.** It is retained because the reasoning is sound and the failure mode is familiar,
+> but it is unevidenced, and it should not be built before an entry demonstrates it. The
+> now-corrected motivating example is itself a good argument for that caution: reasoning about
+> which context a bug needs, without the bug in front of you, produces confident wrong answers.
 
 Approach, cheapest first — and this is a design sketch, not a settled mechanism:
 

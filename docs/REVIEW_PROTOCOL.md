@@ -297,6 +297,31 @@ finding falls through to T2. Letting an under-powered runtime "refute" a real bu
 worst failure this system can produce — the highest-trust label in the design, applied backwards,
 killing a true positive.
 
+That hazard is not hypothetical, and the concrete path to it is worth spelling out. The real fix
+for `ilm-realtor-535` shipped a regression test that runs green in jsdom, by asserting a
+`data-row-elevated` attribute **the fix itself introduced**. Asked for a repro on the *unfixed*
+tree, a model will likewise write some jsdom assertion — and whatever it writes will pass, because
+jsdom cannot see the occlusion. Nothing about that test is malformed or obviously wrong. It simply
+answers a different question, and T1 would score it as a refutation.
+
+### Regression guards are not bug demonstrators
+
+The distinction the `repro.expect: "fails_before_fix"` field encodes, stated plainly because it is
+easy to lose:
+
+| | Demonstrates the bug | Guards the fix |
+| --- | --- | --- |
+| Runs against | The **unfixed** tree | The **fixed** tree |
+| Must | **Fail** | Pass |
+| Asserts on | Observable wrong behavior | Often an artifact the fix introduced |
+| Valid T1 evidence | **Yes** | **No** |
+
+A repro asserting a symbol, attribute, or prop that does not exist on the tree under review is
+categorically a guard, not a demonstrator — it could not have failed, because the thing it checks
+was not there to check. This is mechanically detectable and is a T0-class check: **if a repro
+references an identifier absent from the review target, it is rejected before execution**, no
+sandbox needed. Cheap, and it closes the most likely route to a backwards `REFUTED_EXECUTABLE`.
+
 ### T2 — refutation (models, expensive, the fallback)
 
 For clusters still unresolved. Select two refuters:
