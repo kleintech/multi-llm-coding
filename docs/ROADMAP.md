@@ -143,8 +143,12 @@ M1's numbers said it was worth.
    one that found the issue, and re-verified against the repro before being offered.
 3. **Batch mode** for scheduled sweeps over open PRs at 50% batch pricing.
 4. **Repo-tuned panels** from accumulated local feedback.
-5. **Whole-file / architectural review** outside the PR flow.
-6. **Claude Code skill** wrapping the CLI (trivial once the CLI is stable).
+5. **Journey review** (`crossexam journey`) — UX as a second mode over captured e2e journeys rather
+   than diffs. Design in [`UX_REVIEW.md`](UX_REVIEW.md). Deliberately post-v1: most UX findings
+   cannot be verified, so it exercises the voting path this project argues is weak, and it should
+   not land until the correctness thesis holds.
+6. **Whole-file / architectural review** outside the PR flow.
+7. **Claude Code skill** wrapping the CLI (trivial once the CLI is stable).
 
 ## Deliberately not planned
 

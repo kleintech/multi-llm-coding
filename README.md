@@ -60,6 +60,7 @@ an OpenRouter key, your own LiteLLM Proxy, or local models on your own box.
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | How we prove the panel works: the bench, metrics, reviewer reputation |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Prompt injection, untrusted content fencing, sandbox model, secrets |
 | [`docs/OBSERVED_FAILURES.md`](docs/OBSERVED_FAILURES.md) | **Real false positives from the predecessor system, classified.** The only evidence-backed page here. |
+| [`docs/UX_REVIEW.md`](docs/UX_REVIEW.md) | Journey review as a second mode — why UX needs a different unit, and where verification stops working |
 | [`docs/DELEGATION.md`](docs/DELEGATION.md) | Whether this architecture can also hand work *out* to specialist agents, and why the packet is extracted |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones from M0 to v1.0 |
 | [`docs/adr/`](docs/adr/) | Architecture decision records for the load-bearing choices |
