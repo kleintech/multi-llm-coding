@@ -63,6 +63,35 @@ that ban.
 *Fixed by:* prompt discipline, partially. **Self-assigned severity and claim type are not
 trustworthy**, which has direct consequences for a schema that asks models to self-assign both.
 
+## The first false negative
+
+Everything above is a false positive. Here is the other kind, and it is better instrumented than
+any of them: [`bench/corpus/ilm-realtor-525`](../bench/corpus/ilm-realtor-525.md).
+
+PR #525 fixed a real bug and, in fixing it, introduced another. It was reviewed by the predecessor
+adversarial system, which **passed it**. Its PR body records what the review claimed to cover:
+
+> Fresh-context adversarial review (no builder framing) could not refute correctness,
+> tenant-safety, idempotency, typecheck, or fidelity to `backfill-media-assets.ts`. Its one
+> low-severity note […] is addressed by the dry-run summary wording.
+
+#525 is genuinely impeccable on all five of those. The defect was one relation further out: it
+cataloged Blob URLs from a *different* store than the environment's own, producing Media Library
+rows whose delete path (`del(url)` with the ambient token) silently no-ops. Replaced by #531
+roughly 24 hours later.
+
+Three things this establishes that the false positives could not:
+
+1. **The adversary's zero-real-findings record is not purely a test-selection artifact.** The
+   clean-PR trap below explains why three earlier runs *couldn't* produce a true positive. This run
+   could have and didn't. One data point, one model, diff-only packet — but a real miss.
+2. **The review's coverage claims were the wrong questions, not badly answered ones.** Correctness,
+   tenant-safety, idempotency, typecheck, fidelity: all checked, all fine. Nobody asked *what reads
+   the rows this writes.*
+3. **False negatives are nearly invisible without historical pairs.** This one is only detectable
+   because a later PR replaced the approach and said why. A precision-only corpus would have
+   scored #525's review as a clean success.
+
 ## The test-selection trap
 
 The most important observation from the predecessor runs is not about any finding.

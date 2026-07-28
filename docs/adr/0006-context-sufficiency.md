@@ -78,6 +78,19 @@ Treat absence claims as a distinct, routed class rather than trying to out-conte
 - **Reframing beats dropping.** "The validator exists — does it cover this case?" is a better
   question than the original finding, and dropping on any match would silently discard the real
   bugs where a guard is present but wrong.
+
+  This was argued from principle with no evidence. It now has some:
+  [`ilm-realtor-413`](../../bench/corpus/ilm-realtor-413.md) is a **true** absence claim — a content
+  refresh that copies images and never catalogs them — whose falsifier search *does* return
+  matches. Two sibling scripts elsewhere in the repo catalog media, so T0.5 yields
+  `ABSENCE_UNSUPPORTED`. Neither covers the refresh path: one is structurally blind to cross-store
+  URLs, the other is never invoked by it. **Drop-on-match would have killed a real bug that took
+  five weeks to find in production.** Reframe survives it.
+
+  Worth noting the corresponding hazard, since the same entry exposes it: a refuter that finds
+  `backfill-media-assets.ts` and stops reading will wrongly refute the reframed claim. Reframing
+  moves the failure from T0.5 to T2 rather than eliminating it — it buys a second, better-informed
+  chance, not a guarantee.
 - **The refuter inversion was a genuine defect.** Starving the stage whose job is catching
   context-starvation errors guarantees it reproduces them.
 

@@ -143,7 +143,45 @@ literal is distinctive, and it degrades to nothing when it is not. Worth boundin
 short strings will match everywhere and must be dropped by a frequency threshold rather than
 flooding the packet.
 
-### 2.2b The composition tree — a third context relation
+### 2.2a Write → reader — the relation that carries data coupling
+
+Symbol slicing answers *what does this call*. The caller walk answers *what calls this*. Neither
+answers **who reads what this writes** — and for any code whose output is consumed elsewhere, that
+is where correctness actually lives.
+
+Verified case: [`ilm-realtor-525`](../bench/corpus/ilm-realtor-525.md). A script inserted
+`MediaAsset` rows holding Blob URLs from a different store than the environment's own. The rows are
+structurally valid and the insert is correct in isolation. They are wrong because a *consumer* —
+`src/lib/mcp/tools/mediaAssets.ts`, which deletes via `del(url)` with the ambient store token —
+assumes every catalogued URL lives in that store. The two files never meet: no import, no call, no
+shared module. **They are coupled through a database table.**
+
+The predecessor review checked this PR's correctness, tenant-safety, idempotency, and typing, found
+all four sound, and shipped the defect — because none of those is the question the code failed.
+
+Resolution is unusually cheap. For a write to a named sink, find its readers:
+
+| Sink | Find readers by |
+| --- | --- |
+| ORM model / table | `grep -rl '<model>\.'` (`mediaAsset.`) — near-exact with Prisma/ActiveRecord |
+| Raw SQL | table name in query strings — falls back to the string-literal search of §2.2 |
+| Queue / topic / event | subscriber registration for the topic name |
+| Cache key | key prefix, usually a shared constant |
+| File format / artifact | producer's extension or path convention |
+
+Include readers at depth 1, capped, and prefer *readers of the specific fields written*. The
+signal-to-noise is good because the set is naturally small — seven files matched `mediaAsset.` in a
+repo of this size, and one was the consumer that mattered.
+
+**Scheduled at M5, ranked above composition-tree work**, which remains unevidenced. This relation
+has a verified corpus entry and a mechanism that is essentially a grep.
+
+The honest limit, recorded on the entry itself: the invariant #525 violated — *"`MediaAsset.url`
+must live in the ambient store"* — is written down nowhere. It exists only implicitly, in an
+untokened `del()` call. Retrieval can put a reviewer in front of the consumer; it cannot supply an
+invariant nobody recorded. Context here is **necessary and not sufficient**.
+
+### 2.2b The composition tree — a further context relation
 
 Symbol slicing and caller walks both traverse the **module graph**. Some defects live on a
 relation the module graph does not express: *what wraps this element at render time, and what does

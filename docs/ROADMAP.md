@@ -40,7 +40,7 @@ Deliberately before the interesting features, so every later choice is measured 
 argued.
 
 - Corpus: 40 seeded + 30 clean + **every historical pair available at the time**, Python and
-  TypeScript. `ilm-realtor-535` is entry one and should be in from the start — historical pairs
+  TypeScript, plus all three `ilm-realtor` entries — historical pairs
   are the population that matters, and deferring them was a holdover from before we had any.
 - `bench run` / `bench score`, LLM judge with cached judgments
 - Offline replay over run records
@@ -102,6 +102,9 @@ M1's numbers said it was worth.
 
 - LSP-backed slicing for languages where tree-sitter resolution is too coarse
 - Non-code slice targets: schema, migrations, IDL/protobuf, OpenAPI, config
+- **Write→reader slicing** — for a write to a table/queue/topic/cache, include its readers
+  (`ARCHITECTURE.md` §2.2a). Verified necessary by `bench/corpus/ilm-realtor-525`, the one
+  documented false negative; mechanism is close to a grep. Highest-priority context work.
 - **String-literal cross-language slicing** — resolve animation names, CSS/Tailwind classes, i18n
   keys, DI tokens, route names to their definitions in other file types. Verified necessary by
   `bench/corpus/ilm-realtor-535`; no other mechanism reaches it.
@@ -151,6 +154,7 @@ M1's numbers said it was worth.
 | Risk | Signal it's real | Response |
 | --- | --- | --- |
 | **Context starvation persists** | M1 shows absence-claim FP rate still high after slice + T0.5 | The premise of ADR-0006 is wrong. Escalate: full-file context for all reviewers, or restrict the tool to positive claims only and refuse to publish absence claims at all. |
+| **Undocumented invariants are the real ceiling** | `ilm-realtor-525` stays unfound with every context mechanism enabled | Publish it as the boundary of the approach. Context cannot supply an invariant nobody wrote down; that is a finding, not a failure. |
 | **Panel lift is small** | M2 ablation shows +2–3 points over best single model | Reposition: the value is T0/T0.5/T1 filtering, not the panel. Cut to 2 models, keep verification. |
 | **Refutation not worth its cost** | M2 precision lift per dollar is poor | Make T2 opt-in; lean harder on T0/T1 and independent-family count. |
 | **Persona set has more holes** | A real bug lands in no lane, as `rendering` did | Expected, not exceptional. Personas are config; add one and re-run the bench. Track per-persona unique contribution so dead lanes get dropped. |

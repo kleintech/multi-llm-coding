@@ -52,4 +52,13 @@ deliberate majority of the `historical` set rather than an accident.
 
 | id | kind | tests |
 | --- | --- | --- |
-| [`ilm-realtor-535`](ilm-realtor-535.md) | historical | dom-ancestry context, rendering persona, browser verification |
+| [`ilm-realtor-535`](ilm-realtor-535.md) | historical | string-literal cross-language slicing, `rendering` persona, browser-tier T1, guard-vs-demonstrator |
+| [`ilm-realtor-413`](ilm-realtor-413.md) | historical | a **true** absence claim; asserts reframe-don't-drop survives T0.5 |
+| [`ilm-realtor-525`](ilm-realtor-525.md) | historical | write→reader slicing; **the first documented false negative** — predecessor review passed this PR |
+
+### Entries that assert a *negative*
+
+`ilm-realtor-413` exists to catch a silent regression: if reframe-don't-drop ever becomes
+drop-on-match, a true positive vanishes with no error and no output. Entries whose pass condition is
+"this finding still survives stage N" are as important as entries whose pass condition is "this bug
+is found," and are much easier to forget to write.
