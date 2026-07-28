@@ -115,6 +115,9 @@ M1's numbers said it was worth.
   but has no verified corpus example, and its original motivating case turned out to be something
   else. Schedule it when an entry demonstrates it, not before.
 - Persona presets per repo shape; warn when a repo's dominant language has no persona covering it
+- **`renders` in the packet** — capture screenshots at existing e2e navigation points and pass them
+  to image-capable panel members (`ARCHITECTURE.md` §2.0b). A `rendering` persona without eyes only
+  relocates the blindness it was added to fix.
 - `signals`: linter, type checker, test, coverage output
 - Conventions ingestion (`CLAUDE.md`, `AGENTS.md`, lint config)
 - Anonymization scrub

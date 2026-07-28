@@ -24,7 +24,7 @@ every finding so a regression in a brief is traceable.
 | `compat` | The blast radius outside the diff | Breaking API/schema/wire changes, migration ordering, backward compatibility, config default changes, behavior changes to existing callers |
 | `tests` | Whether the tests are real | Tests that pass regardless of the code, over-mocking, missing negative cases, assertions on the wrong thing, coverage that doesn't touch the changed branch |
 | `intent` | Does it do what it says | Diff vs. stated purpose, scope creep, silent behavior change, dead or unreachable additions, TODOs shipped as done |
-| `rendering` | What the user actually sees | Stacking contexts and z-index that cannot win, overflow/clip boundaries, portal and focus containment, layout shift, responsive breakage, hydration mismatch, disabled/loading states, accessible naming and keyboard reachability |
+| `rendering` | What the user actually sees — **gets screenshots** (`ARCHITECTURE.md` §2.0b), not just JSX | Stacking contexts and z-index that cannot win, overflow/clip boundaries, portal and focus containment, layout shift, responsive breakage, hydration mismatch, disabled/loading states, accessible naming and keyboard reachability |
 
 `intent` deserves special mention: it is the persona most likely to catch the characteristic
 failure of AI-authored code, which is not "wrong" so much as "confidently solved a slightly

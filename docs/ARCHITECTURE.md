@@ -64,6 +64,29 @@ builder's job is to make the diff *legible*.
 | `conventions` | `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, lint/type config, `.editorconfig` | Tells reviewers what "correct style" means here so they stop guessing. |
 | `signals` | Existing CI logs, test results, coverage delta, linter output | Prevents the panel from re-reporting what the linter already caught. |
 | `repo_card` | Language, framework, package manager, test command, entrypoints | Cheap orientation. Generated once, cached. |
+| `renders` | Screenshots of affected surfaces, before/after, from an existing e2e run | **Only for diffs touching UI.** See §2.0b. |
+
+### 2.0b Screenshots, for UI diffs
+
+A `rendering` persona handed JSX text is exactly as blind as any other reader of JSX text. It can
+reason that a `z-index` *ought* to work; it cannot see that the popover is behind the next row.
+Giving that persona a lane without giving it eyes just relocates the blindness.
+
+So for diffs touching UI, the packet carries **rendered screenshots** — before and after, at desktop
+and mobile widths — and every panel member capable of image input receives them. Frontier models are
+multimodal; this costs a few hundred tokens per image and converts an entire class of defect from
+"unreasonable to expect" to "visible."
+
+Sourcing is the practical constraint, and the answer is to piggyback rather than build: most repos
+with UI already run Playwright or Cypress in CI, driving a real browser past the affected screens.
+Capturing at existing navigation points is a hook, not a new harness. Where no e2e suite exists,
+`renders` is simply absent and the run records that — the `rendering` persona then degrades to
+static reasoning, and its findings should be weighted accordingly.
+
+The motivating evidence is [`ilm-realtor-535`](../bench/corpus/ilm-realtor-535.md): that repo had
+**11 Playwright specs** driving a real browser, several of which rendered the exact page carrying
+the bug, and **zero screenshot assertions**. The browser was already open. Nobody was looking.
+A pilot user found it instead.
 
 ### 2.0 Intent comes first
 
