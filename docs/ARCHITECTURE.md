@@ -7,7 +7,7 @@
    git diff  ──────────► │  1. PACKET BUILDER                  │
    repo state            │  diff + files + symbol slice +      │
    CI output             │  conventions + tool output          │
-   PR metadata           │  → ReviewPacket (tiered by budget)  │
+   PR metadata           │  → ContextPacket (tiered by budget) │
                          └──────────────┬──────────────────────┘
                                         │  (identical packet to every reviewer)
                          ┌──────────────▼──────────────────────┐
@@ -47,7 +47,7 @@ Stages 1, 3, 5, and 6 are deterministic Python. Stages 2 and 4 call models. This
 single most important structural decision in the project; see
 [ADR-0001](adr/0001-deterministic-orchestration.md).
 
-## 2. Stage 1 — the review packet
+## 2. Stage 1 — the context packet
 
 Reviewers hallucinate in proportion to what they cannot see. A bare unified diff is the worst
 possible input: it invites confident claims about functions the model has never read. The packet
@@ -380,9 +380,13 @@ not an expensive re-run.
 
 ```
 crossexam/
-  core/
-    packet.py          # ReviewPacket, budget tiers, anonymization
+  context/             # TASK-AGNOSTIC — no review-specific types. See DELEGATION.md §4.
+    packet.py          # ContextPacket, budget tiers, intent ordering, anonymization
     slicing.py         # symbol slice: ctags / tree-sitter / LSP / grep
+    readers.py         # write→reader resolution (§2.2a)
+    literals.py        # string-literal cross-language references (§2.2)
+    repo_card.py       # language/framework/test-command detection
+  review/
     models.py          # Finding, FindingCluster, RunRecord, Verdict (pydantic)
     cluster.py         # embedding + overlap clustering
     ladder.py          # T0..T3 verification

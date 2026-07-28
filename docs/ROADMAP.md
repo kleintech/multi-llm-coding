@@ -20,6 +20,9 @@ Prove the loop end to end, locally. Context handling is in from day one — it i
 it is the difference between a working reviewer and a noise generator.
 
 - `Finding` / `RunRecord` models, `panel.yaml` loader with family resolution and validation
+- **`context/` split from `review/` from the first commit** — `ContextPacket` carries no
+  review-specific types. Naming and a directory now; a painful refactor later. See
+  [`DELEGATION.md`](DELEGATION.md#4-the-decision).
 - Packet builder: diff + full changed files + **symbol slice at depth 1** (tree-sitter/ctags)
 - `litellm_backend` with the structured-output ladder (rungs 1–3 only)
 - Fan-out to 2 models × 2 personas, blind
