@@ -87,6 +87,24 @@ here rather than shipping as a default nobody benefits from.
 itself, and the bench shows the executable path has materially higher precision than consensus.
 This is the feature that separates crossexam from a prompt.
 
+## M3.5 — Audit mode *(~1.5 weeks)*
+
+Promoted ahead of the Action. The Action only improves *new* code; audit mode is the one that
+addresses debt already in the repo, which is the more common starting problem. It reuses the M0–M2
+panel and needs none of M4's fork-PR machinery, so it is the cheapest remaining path to value.
+Design in [`AUDIT_MODE.md`](AUDIT_MODE.md).
+
+- Repo map: dependency graph, churn, test presence, route table, doc index
+- Read-only agent leaves with a hard call budget ([ADR-0007](adr/0007-read-only-agent-leaves.md));
+  `INCONCLUSIVE` on budget exhaustion, never silence
+- Claim generators: doc↔code drift and invariant sweep (2a, 2b). Undocumented-invariant discovery
+  (2c) follows once drift output shows what the docs already cover.
+- `crossexam audit --claims docs/decisions/` and `--claim <file>`
+- Check emission: a finding with enumerable violations proposes a lint rule or CI assertion
+
+**Exit:** a real ADR is audited against a real codebase, at least one genuine drift is found with a
+citation that survives T0, and one finding ships as a check that fails on exactly its violations.
+
 ## M4 — GitHub Action *(~2 weeks)*
 
 - Two-workflow split, artifact schema validation, PR cross-check

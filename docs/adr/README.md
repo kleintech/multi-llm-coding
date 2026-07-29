@@ -11,6 +11,7 @@ differently, and where reversing later would be expensive.
 | [0004](0004-execution-over-consensus.md) | Execution outranks consensus | The difference between this and a prompt that asks three models |
 | [0005](0005-precision-over-recall.md) | Precision over recall, enforced by hard caps | Determines whether anyone leaves the tool switched on |
 | [0006](0006-context-sufficiency.md) | Absence claims are a routing problem, not a context-size problem | Addresses the failure mode that kills naive multi-model review |
+| [0007](0007-read-only-agent-leaves.md) | Read-only agent leaves for audit mode | Amends ADR-0001; the only place models get tools, and it changes the security justification |
 
 Format: Context / Decision / Rationale / Consequences. Consequences must include what the decision
 costs — an ADR that only lists benefits hasn't finished thinking.
