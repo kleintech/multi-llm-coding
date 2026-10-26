@@ -1,5 +1,10 @@
 # Roadmap
 
+> **Superseded in part (October 2026).** The panel, provider plumbing, and PR surface below now
+> exist in open-source tools. See [`LANDSCAPE.md`](LANDSCAPE.md) §4 for the revised plan: measure an
+> existing tool against the corpus first, then build only verification and audit mode. The
+> milestones are kept for reference until that measurement is done.
+
 Ordered so that the riskiest assumptions are tested first and cheapest. There are two:
 
 1. **Context sufficiency.** That a reviewer can be given enough of the surrounding codebase to

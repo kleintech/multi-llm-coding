@@ -6,6 +6,9 @@ being demonstrated with a failing test — reach the pull request.
 
 > **Status: design phase.** This repository currently contains the design only. No implementation
 > has been written yet. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the build order.
+>
+> **October 2026 update:** much of this design now exists elsewhere. Read
+> [`docs/LANDSCAPE.md`](docs/LANDSCAPE.md) first — it narrows what is still worth building.
 
 ---
 
@@ -63,6 +66,7 @@ an OpenRouter key, your own LiteLLM Proxy, or local models on your own box.
 | [`docs/AUDIT_MODE.md`](docs/AUDIT_MODE.md) | Pointing a panel at a whole codebase — doc↔code drift, invariant sweeps, and why "review my architecture" is not a task |
 | [`docs/UX_REVIEW.md`](docs/UX_REVIEW.md) | Journey review as a second mode — why UX needs a different unit, and where verification stops working |
 | [`docs/DELEGATION.md`](docs/DELEGATION.md) | Whether this architecture can also hand work *out* to specialist agents, and why the packet is extracted |
+| [`docs/LANDSCAPE.md`](docs/LANDSCAPE.md) | **What exists now (Oct 2026), gap analysis, and what is still worth building** |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones from M0 to v1.0 |
 | [`docs/adr/`](docs/adr/) | Architecture decision records for the load-bearing choices |
 
